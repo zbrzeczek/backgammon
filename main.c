@@ -79,45 +79,39 @@ void ustawNazwy(GameState *stanGry){
     refresh();
 }
 
-void displayPlansza(GameState *stanGry, WINDOW *plansza) {
-    int z = 0;
-    wclear(plansza);
+void displayStatic(WINDOW *plansza){
     mvwprintw(plansza, 0, 0, "1 1 1 1 1 1     1 2 2 2 2 2");
     mvwprintw(plansza, 1, 0, "3 4 5 6 7 8     9 0 1 2 3 4");
     mvwprintw(plansza, 2, 0, "-----------|   |-----------");
-    for (int i=0; i<12; i++){
-        if (i == 6){
-            z += 4;
-        }
-        int pP1Up = stanGry->pionki[0][23-i];
-        int pP2Up = stanGry->pionki[1][23-i];
-        int pP1D = stanGry->pionki[0][11-i];
-        int pP2D = stanGry->pionki[1][11-i];
-        int barP1 = stanGry->bar[0];
-        int barP2 = stanGry->bar[1];
-
-        for (int j=0; j<pP1Up; j++){
-            mvwprintw(plansza, j+3, 26-(2*i+z), "O");
-        }
-        for (int j=0; j<pP2Up; j++){
-            mvwprintw(plansza, j+3, 26-(2*i+z), "X");
-        }
-        for (int j=0; j<pP1D; j++){
-            mvwprintw(plansza, 15-j, 2*i+z, "O");
-        }
-        for (int j=0; j<pP2D; j++){
-            mvwprintw(plansza, 15-j, 2*i+z, "X");
-        }
-        for (int j=0; j<barP1; j++){
-            mvwprintw(plansza, 4+j, 13, "O");
-        }
-        for (int j=0; j<barP2; j++){
-            mvwprintw(plansza, 13-j, 13, "X");
-        }
-    }
     mvwprintw(plansza, 16, 0, "-----------|   |-----------");
     mvwprintw(plansza, 17, 0, "1 1 1 9 8 7     6 5 4 3 2 1");
     mvwprintw(plansza, 18, 0, "2 1 0");
+}
+
+void displayPlansza(GameState *stanGry, WINDOW *plansza) {
+    int z = 0;
+    wclear(plansza);
+    displayStatic(plansza);
+
+    for (int i = 0; i < 12; i++) {
+        if (i == 6) z += 4;
+        
+        for (int j = 0; j < 2; j++) {
+            int pUp = stanGry->pionki[j][23 - i];
+            int pD = stanGry->pionki[j][11 - i];
+            int bar = stanGry->bar[j];
+
+            for (int k = 0; k < pUp; k++)
+                mvwprintw(plansza, k + 3, 26 - (2 * i + z), (j == 0) ? "O" : "X");
+
+            for (int k = 0; k < pD; k++)
+                mvwprintw(plansza, 15 - k, 2 * i + z, (j == 0) ? "O" : "X");
+
+            for (int k = 0; k < bar; k++)
+                mvwprintw(plansza, (j == 0) ? 4 + k : 13 - k, 13, (j == 0) ? "O" : "X");
+        }
+    }
+
     wrefresh(plansza);
 }
 
@@ -125,20 +119,19 @@ void displayPlansza(GameState *stanGry, WINDOW *plansza) {
 void zbicie(GameState *stanGry, WINDOW *info, int kosc, int pole){
     int kol = stanGry->kolejka-1;
     int opp = (kol+1)%2;
+    int dod = stanGry->kostki[kosc-1];
     
     if (pole == 100){
-        int opp1 = stanGry->kolejka==P1 ? 24-stanGry->kostki[kosc-1] : stanGry->kostki[kosc-1];
+        int opp1 = stanGry->kolejka==P1 ? 24-dod : dod;
         stanGry->pionki[opp][opp1]--;
         stanGry->bar[opp]++;
         stanGry->bar[kol]--;
         stanGry->pionki[kol][opp1]++;
         wclear(info);
         mvwprintw  (info, 10, 0, "Ruch obowiazkowy");
-        wrefresh(info);
-        sleep(1);
     }
     else {
-        int opp1 = stanGry->kolejka==P1 ? pole-stanGry->kostki[kosc-1] : pole+stanGry->kostki[kosc-1];
+        int opp1 = stanGry->kolejka==P1 ? pole-dod : pole+dod;
         stanGry->pionki[opp][opp1]--;
         stanGry->pionki[kol][pole]--;
         stanGry->pionki[kol][opp1]++;
@@ -168,54 +161,67 @@ void ruchNzbicie(GameState *stanGry, WINDOW *info, int kosc, int pole){
     stanGry->kostki[kosc-1]=0;
 }
 
+int wybierzK(WINDOW *info) {
+    int kosc;
+    mvwprintw(info, 12, 0, "Wybierz kostke");
+    wmove(info, 13, 0);
+    wrefresh(info);
+    wscanw(info, "%d", &kosc);
+    return kosc;
+}
 
-void wybKostki(GameState *stanGry,  int pole, WINDOW *info, int *ruch, WINDOW *plansza, int pZdej){
+int infoZbicie(GameState *stanGry, WINDOW *info, int kosc, int pole, int opp, int opp1){
+    if (stanGry->pionki[opp][opp1] != 1) {
+        mvwprintw(info, 15, 0, "Nakaz zbicia!");
+        return TRUE;
+    }
+    else {
+        zbicie(stanGry, info, kosc, pole);
+        return FALSE;
+    }
+}
+
+int infoNzbicie(GameState *stanGry, WINDOW *info, int kosc, int pole, int opp, int opp1){
+    if (stanGry->pionki[opp][opp1] > 1 || opp1>23 || opp1 < 0 || stanGry->kostki[kosc-1] == 0){
+        mvwprintw(info, 15, 0, "Ruch nie wykonalny");
+        return TRUE;
+    }
+    else if (stanGry->pionki[opp][opp1] == 1) {
+        zbicie(stanGry, info, kosc, pole);
+        return FALSE;
+    }
+    else {
+        ruchNzbicie(stanGry, info, kosc,  pole); 
+        return FALSE;
+    }
+}
+
+void wyswietlI(GameState *stanGry, WINDOW *info){
+    mvwprintw(info, 4, 0, "Gracz %d \n\nPozostale ruchy \n1. %d\n2. %d", stanGry->kolejka,stanGry->kostki[0],stanGry->kostki[1]);
+}
+
+void wybKostki(GameState *stanGry,  int pole, WINDOW *info, int *ruch, int pZdej){
     int wybKosc=TRUE, kosc, kol = stanGry->kolejka-1;
     while (wybKosc){
-        mvwprintw(info, 4, 0, "Gracz %d \n\nPozostale ruchy \n1. %d\n2. %d", stanGry->kolejka,stanGry->kostki[0],stanGry->kostki[1]);
-        mvwprintw(info, 12, 0, "Wybierz kostke");
-        wmove(info, 13, 0);
-        wrefresh(info);
-        wscanw(info, "%d", &kosc);
+        wyswietlI(stanGry, info);
+        kosc = wybierzK(info);
+
         if (stanGry->kostki[kosc-1] == 0) {
             wclear(info);
             mvwprintw(info, 12, 0, "Ruch wykorzystany");
-            wrefresh(info);
         }
         else {
             int opp1 = stanGry->kolejka==P1 ? pole-stanGry->kostki[kosc-1] : pole+stanGry->kostki[kosc-1];
             int opp = (kol+1)%2;
 
             if (pZdej > 0){
-                if (stanGry->pionki[opp][opp1] != 1) mvwprintw(info, 15, 0, "Nakaz zbicia!");
-                else {
-                    zbicie(stanGry, info, kosc, pole);
-                    wybKosc = FALSE;
-                }
-                wclear(info);
-                mvwprintw(info, 12, 0, "check one");
-                wrefresh(info);
+                wybKosc = infoZbicie(stanGry, info, kosc, pole, opp, opp1);
             }
             else {
-                if (stanGry->pionki[opp][opp1] > 1 || opp1>23 || opp1 < 0 || stanGry->kostki[kosc-1] == 0){
-                    mvwprintw(info, 15, 0, "Ruch nie wykonalny");
-                    sleep(1);
-                }
-                else if (stanGry->pionki[opp][opp1] == 1) {
-                    zbicie(stanGry, info, kosc, pole);
-                    wybKosc = FALSE;
-                    mvwprintw(info, 12, 0, "check two 2");
-                }
-                else {
-                    ruchNzbicie(stanGry, info, kosc,  pole); 
-                    wybKosc = FALSE;
-                    wclear(info);
-                    mvwprintw(info, 12, 0, "check two 3");
-                }
+                wybKosc = infoNzbicie(stanGry, info, kosc, pole, opp, opp1);
             }
-            wrefresh(info);
-            sleep(1);
         }
+        wrefresh(info);
     }
 }
 
@@ -273,66 +279,76 @@ int zdejPole(GameState *stanGry, int pole){
     return zbicie;
 }
 
+void barDis(WINDOW *info){
+    wclear(info);
+    mvwprintw  (info, 10, 0, "Musisz wyjsc z baru");
+    wrefresh(info);
+    sleep(1);
+}
+
 void barObw(GameState *stanGry, WINDOW *plansza, WINDOW *info, int *ruch){
-    int kol = stanGry->kolejka-1;
-    int opp = (kol+1)%2;
-    int pos1 = stanGry->kolejka==P1 ? 24-stanGry->kostki[0] : stanGry->kostki[0];
-    int pos2 = stanGry->kolejka==P1 ? 24-stanGry->kostki[1] : stanGry->kostki[1];
-    
-    if (stanGry->pionki[opp][pos1] == 0 || stanGry->pionki[opp][pos2] == 0){
-        int pos = pos1 == 0 ? pos1 : pos2;
-        int kosc = pos1 == 0 ? 0 : 1;
-        ruchNzbicie(stanGry, info, kosc, 100);
-    }
-    else if (stanGry->pionki[opp][pos1] == 1 || stanGry->pionki[opp][pos2] == 1) {
-        int pos = pos1 == 0 ? pos1 : pos2;
-        int kosc = pos1 == 0 ? 0 : 1;
+    int kol = stanGry->kolejka-1, opp = (kol+1)%2;
+    int pos1 = kol+1==P1 ? 24-stanGry->kostki[0] : stanGry->kostki[0]-1;
+    int pos2 = kol+1==P1 ? 24-stanGry->kostki[1] : stanGry->kostki[1]-1;
+    int poz1 = stanGry->pionki[opp][pos1], poz2 = stanGry->pionki[opp][pos2];
+
+
+    if (poz1 == 1 || poz2 == 1) {
+        int pos = pos1 == 1 ? pos1 : pos2;
+        int kosc = pos1 == 1 ? 1 : 2;
         zbicie(stanGry, info, kosc, 100);
     }
-    else if (stanGry->pionki[opp][pos1] >1 && stanGry->pionki[opp][pos2] > 1){
-        wclear(info);
-        mvwprintw  (info, 10, 0, "Musisz wyjsc z baru");
-        wrefresh(info);
-        sleep(1);
+    else if (poz1 == 0 || poz2 == 0){
+        int pos = pos1 == 0 ? pos1 : pos2;
+        int kosc = pos1 == 0 ? 1 : 2;
+        ruchNzbicie(stanGry, info, kosc, 100);
+    }
+    else if (poz1 >1 && poz2 > 1){
+        barDis(info);
         *ruch = FALSE;
     }
 }
 
+int wGranicach(int poz) {
+    return (poz >= 0 && poz <= 23);
+}
+
+int condBar (GameState *stanGry, int opp, int k1, int k2){
+    int kol = stanGry->kolejka - 1;
+    int pos1 = kol+1==P1 ? 24-k1 : k1-1;
+    int pos2 = kol+1==P1 ? 24-k2 : k2-1;
+    if (stanGry->pionki[opp][pos1] > 1 && stanGry->pionki[opp][pos2] > 1) return FALSE;
+    else if (stanGry->pionki[opp][pos1] > 1 && k2 == 0) return FALSE;
+    else if (stanGry->pionki[opp][pos2] > 1 && k1 == 0) return FALSE;
+    return TRUE;
+}
+
 int maszRuch(GameState *stanGry, int opp, int opp1, int opp2) {
-    int kol = stanGry->kolejka-1;
-    if (stanGry->pionki[opp][opp1] > 1 &&  stanGry->pionki[opp][opp2] > 1) return FALSE;
-    else if (stanGry->pionki[opp][opp1] > 1 &&  stanGry->kostki[1] == 0) return FALSE;
-    else if (stanGry->pionki[opp][opp2] > 1 &&  stanGry->kostki[0] == 0) return FALSE;
-    if (opp1>23 && opp2 >23 ) return FALSE;
-    if (opp1<0 && opp2 < 0 ) return FALSE;
-    if (stanGry->bar[kol] > 0){
-        int pos1 = stanGry->kolejka==P1 ? stanGry->kostki[0] : 24-stanGry->kostki[0];
-        int pos2 = stanGry->kolejka==P1 ? stanGry->kostki[1] : 24-stanGry->kostki[1];
-        if (stanGry->pionki[opp][pos1] > 1 && stanGry->pionki[opp][pos2] > 1) return FALSE;
-        else if (stanGry->pionki[opp][pos1] > 1 && stanGry->kostki[1] == 0) return FALSE;
-        else if (stanGry->pionki[opp][pos2] > 1 && stanGry->kostki[0] == 0) return FALSE;
+    int kol = stanGry->kolejka-1, k1 = stanGry->kostki[0], k2 = stanGry->kostki[1];
+    int poz1 = stanGry->pionki[opp][opp1], poz2 = stanGry->pionki[opp][opp2];
+
+    if ((poz1 > 1 &&  poz2 > 1) || (poz1 > 1 &&  k2 == 0) || (poz2 > 1 &&  k1 == 0) || (!wGranicach(poz1) && !wGranicach(poz2))) return FALSE;
+
+    if (stanGry->bar[kol] > 0 && !condBar(stanGry, opp, k1, k2)){
+        return FALSE;
     }
     return TRUE;
 }
 
-void zrobRuch(GameState *stanGry, WINDOW *info, WINDOW *plansza, int pole, int *ruch){
+void zrobRuch(GameState *stanGry, WINDOW *info, int pole, int *ruch){
     int kol = stanGry->kolejka-1;
 
-    int opp1 = stanGry->kolejka==P1 ? pole-stanGry->kostki[0] : pole+stanGry->kostki[0];
-    int opp2 = stanGry->kolejka==P1 ? pole-stanGry->kostki[1] : pole+stanGry->kostki[1];
-    int pZdej = zdejOgol(stanGry);
+    int opp1 = kol+1==P1 ? pole-stanGry->kostki[0] : pole+stanGry->kostki[0];
+    int opp2 = kol+1==P1 ? pole-stanGry->kostki[1] : pole+stanGry->kostki[1];
     
-    if (stanGry->pionki[kol][pole] != 0 && !maszRuch(stanGry, (kol+1)%2, opp1, opp2)){
+    if ((stanGry->pionki[kol][pole] != 0 && !maszRuch(stanGry, (kol+1)%2, opp1, opp2)) || stanGry->pionki[kol][pole] == 0){
         mvwprintw(info, 8, 0, "Wybierz inne pole");
     }
-    else if (stanGry->pionki[kol][pole] == 0){
-        mvwprintw(info, 10, 0, "Nie masz tu pionkow");
-    }
-    else if (pZdej > 0 && zdejPole(stanGry, pole) == 0){
+    else if (zdejOgol(stanGry) > 0 && zdejPole(stanGry, pole) == 0){
         mvwprintw(info, 10, 0, "Nakaz zbicia!");
     }
     else {
-        wybKostki(stanGry, pole, info, ruch, plansza, pZdej);
+        wybKostki(stanGry, pole, info, ruch, zdejOgol(stanGry));
     }
     wrefresh(info);
     sleep(1);
@@ -353,7 +369,7 @@ void wykonajR(GameState *stanGry, WINDOW *info, WINDOW *plansza){
             wrefresh(info);
             wscanw(info, "%d", &pole);
             wclear(info);
-            zrobRuch(stanGry, info, plansza, pole-1, &ruch);
+            zrobRuch(stanGry, info, pole-1, &ruch);
         }
         displayPlansza(stanGry, plansza);
         checkIfGra(stanGry, info, &ruch);
@@ -393,6 +409,14 @@ void losowanieKostek(GameState *stanGry){
     refresh();
 }
 
+void wyswietlKos(GameState *stanGry){
+    mvprintw(ROWS/2-2,COL/2-10,"Wynik:");
+    mvprintw(ROWS/2,COL/2-10,"P1: %d   P2: %d", stanGry->kostki[0], stanGry->kostki[1]);
+    refresh();
+    sleep(1);
+    clear();
+}
+
 void losowanieKolejki(GameState *stanGry){
     while (!stanGry->kolejka){
         mvprintw(ROWS/2-2,COL/2-10,"Losowanie kostek...");
@@ -402,11 +426,8 @@ void losowanieKolejki(GameState *stanGry){
         stanGry->kostki[0] = rand() % 6 + 1;
         stanGry->kostki[1] = rand() % 6 + 1;
 
-        mvprintw(ROWS/2-2,COL/2-10,"Wynik:");
-        mvprintw(ROWS/2,COL/2-10,"P1: %d   P2: %d", stanGry->kostki[0], stanGry->kostki[1]);
-        refresh();
-        sleep(1);
-        clear();
+        wyswietlKos(stanGry);
+
         if (stanGry->kostki[0]>stanGry->kostki[1]){
             stanGry->kolejka = P1;
             mvprintw(ROWS/2-2,COL/2-10, "Zaczyna %s", stanGry->gracz1);
